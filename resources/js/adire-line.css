@@ -1,0 +1,30 @@
+/* Adire connecting-line motif. */
+/* Indigo (#263A5C) connectors between text blocks only. */
+
+:root {
+    --adire-line: #263A5C;
+    --adire-line-width: 1.5px;
+    --adire-card-bg: #EDE3D0;
+    --adire-card-ink: #15120D;
+    --adire-rail: #A9812F;
+}
+
+.adire-line {
+    width: 1.5px;
+    background: var(--adire-line);
+    margin: 0 auto;
+}
+
+.adire-node {
+    margin: 0 auto;
+    background: var(--adire-card-bg);
+    color: var(--adire-card-ink);
+    border: 1px solid var(--adire-line);
+}
+
+.adire-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--adire-line);
+    border-radius: 50%;
+}
