@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /api/
+Disallow: /about
+Disallow: /login
+Disallow: /dashboard
+Disallow: /members
+Disallow: /tree
+Disallow: /relationship
+Disallow: /admin
+
+Sitemap:
