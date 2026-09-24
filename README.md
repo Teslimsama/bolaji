@@ -1,58 +1,130 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Crestkeeper
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A private lineage registry for the Bolaji family. Members are drawn as parchment
+person cards across four generations, connected by adire-indigo lines. Claims are
+reviewed by family elders before a member is verified.
 
-## About Laravel
+Stack: Laravel (API) + React (client-side SPA) + Vite + Tailwind CSS. The SPA
+calls the Laravel API over JSON; profile photos are stored on the private disk.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Screens
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- `GET /` - public home: asymmetric split, crest + adire motif rail, lineage stat strip (live from `/api/branches`)
+- `GET /dashboard` - stat cards (verified / pending / reviews open / completed) and an "ask a relative" box
+- `GET /tree` - the four-generation family tree, oldest at top; parchment cards on adire connecting lines
+- `GET /find` - search members, then ask "how are we connected?" and see the chain, degrees, and close-family warning
+- `GET /admin/queue` - the verification queue data table with a slide-in review drawer (approve / request more info)
+- `GET /login`, `/request-access`, `/me`, `/me/verify` - auth screens
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Run locally
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <your-repo> bolaji
+cd bolaji
+composer install
+npm install
+cp .env.example .env          # set DB_* for your MySQL
+php artisan key:generate
+php artisan migrate --force
+php artisan db:seed --force   # demo Bolaji data + generated profile photos
+npm run build                 # Laravel build (public/build)
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Open `http://127.0.0.1:8000`.
 
-## Contributing
+## Demo accounts
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+All passwords are `password`.
 
-## Code of Conduct
+| email | role | linked member |
+|-------|------|---------------|
+| admin@bolaji.test | admin | Bamidele Bolaji |
+| elder@bolaji.test | elder | Chief Adeleke Bolaji |
+| member1@bolaji.test | member | Morayo Bolaji |
+| member2@bolaji.test | member | Kolawole Bolaji |
+| member3@bolaji.test | member | Ifeoluwa Bolaji |
+| member4@bolaji.test | member | Aramide Bolaji |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Admins can open the verification queue. Elders (and admins) can review requests.
+Members can browse the tree and ask how two people are related once their own
+membership is verified.
 
-## Security Vulnerabilities
+## Profile photos
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Every member has a generated PNG avatar on the private disk at
+`storage/app/private/photos/{member_id}/profile.png`. They render without login at
+`/preview/photo/{member_id}`. Real uploads go through
+`POST /api/members/{id}/photo` (file field `photo`) and are served at
+`GET /api/media/serve/{member}/photo` behind the `verified.member` middleware.
+
+## API
+
+All JSON. Login first:
+
+```
+POST /api/login
+{"email":"admin@bolaji.test","password":"password"}
+```
+
+returns `{"token": "...", "user": { ... }}`. Send `Authorization: Bearer <token>`
+on subsequent requests.
+
+| endpoint | access | notes |
+|----------|--------|-------|
+| `GET /api/branches` | public | branch list with member counts |
+| `GET /api/announcements` | public | announcements |
+| `GET /api/events` | public | family events |
+| `POST /api/request-access` | public | claim a family relation |
+| `POST /api/login` / `POST /api/logout` | public / auth | Sanctum bearer tokens |
+| `GET /api/me` | auth | current user + linked member |
+| `GET /api/members?search=` | verified.member | search members |
+| `GET /api/members/{id}/profile` | verified.member | member profile |
+| `GET /api/me/relationship/{memberId}` | verified.member | how *you* relate to that member (label, degrees, common ancestor, close-family warning) |
+| `GET /api/tree` | verified.member | full family tree |
+| `GET /api/admin/dashboard` | admin | counts + recent audit |
+| `GET /api/verifications` | elder/admin | verification queue |
+| `POST /api/verifications/{id}/review` | elder/admin | `{status: approved|more_info|rejected}` |
+| `GET/POST/PUT /api/privacy`, `/api/media` | auth | privacy + media |
+
+Relationship example:
+
+```json
+{"result": {
+  "subject": {"full_name": "Bamidele Bolaji", "branch": "Ijesha Branch"},
+  "label": "Uncle",
+  "kin_type": "aunt_uncle",
+  "chain_side": "aunt_nephew",
+  "common_ancestor": {"full_name": "Adeleke Bolaji"},
+  "degrees": {"m": 1, "n": 2},
+  "close_family_warning": true,
+  "close_family_reason": "Shares an ancestor within 4 generations.",
+  "details": "Bamidele Bolaji is the Uncle of Ifeoluwa Bolaji.",
+  "path": []
+}}
+```
+
+`close_family_warning` only appears for recent ancestors. Disconnected people
+return `null` for the result.
+
+## Architecture
+
+The SPA is a pure client-side router (`resources/js/router.tsx`) with a token
+helper (`resources/js/api.ts`). It ships as static files, so it can be hosted
+anywhere: local Laravel serves the shell via `resources/views/app.blade.php` +
+built assets, and Vercel serves the same build from `dist/`.
+
+- `vite.config.js` - Laravel build -> `public/build` (used by the Blade shell)
+- `vite.vercel.config.js` - static build -> `dist` (`npm run build:vercel`)
+- `resources/js/theme.ts` - design tokens (ink / parchment / brass / adire / kola / moss)
+- `app/Services/RelationshipService.php` - the relationship resolver (BFS over the family graph)
+
+## Deployment
+
+Split deployment: the **VPS** hosts Laravel (`/api/*`, `/preview/photo/*`,
+`/up`), and **Vercel** hosts the built SPA. The full guide (`.env`, Nginx block,
+certbot, Vercel settings, first-run checklist) is in [DEPLOY.md](./DEPLOY.md).
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+The Laravel framework is open-sourced software licensed under the MIT license.
