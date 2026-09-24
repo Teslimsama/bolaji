@@ -12,6 +12,9 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    define: {
+        __CRESTKEEPER_API_URL__: JSON.stringify(process.env.CRESTKEEPER_API_URL ?? ''),
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

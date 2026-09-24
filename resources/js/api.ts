@@ -1,6 +1,10 @@
 // API base, token storage and authenticated fetch.
+// Injected at build time from the non-VITE variable CRESTKEEPER_API_URL,
+// so it never leaves Vercel as a browser-exposed VITE_ value.
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+declare const __CRESTKEEPER_API_URL__: string | undefined
+
+const BASE = (__CRESTKEEPER_API_URL__ ?? '').replace(/\/$/, '')
 const TOKEN_KEY = 'ck_token'
 
 export function getToken(): string | null {

@@ -115,7 +115,7 @@ The SPA is already converted to a **client-side router** (no Laravel on Vercel).
 - `index.html`  --  static shell with `<div id="app">`
 - `vite.vercel.config.js`  --  builds `dist/`
 - `vercel.json`  --  rewrites every non-`/api/*` path to `index.html`
-- `resources/js/api.ts`  --  calls `VITE_API_URL`, sends the Sanctum bearer token
+- `resources/js/api.ts` -- calls `CRESTKEEPER_API_URL` (injected at build time), sends the Sanctum bearer token
 - `resources/js/router.tsx`  --  client routing, backed by browser history
 
 ### Steps
@@ -125,8 +125,8 @@ The SPA is already converted to a **client-side router** (no Laravel on Vercel).
 3. Framework preset: **Vite**.
 4. Build command: `npm run build:vercel`  (outputs `dist/`)
 5. Output directory: `dist`
-6. Environment variable:
-   - `VITE_API_URL` = `https://api.yourdomain.com`
+6. Environment variable (use **Config**, not Encrypted -- it is public build-time config):
+   - `CRESTKEEPER_API_URL` = `https://api.yourdomain.com`
 7. Deploy.
 
 ### Local check before deploy
@@ -137,7 +137,7 @@ npx vite preview --port 8351          # open http://localhost:8351
 ```
 
 Auth flow after deploy: sign in on the Vercel site -> `Login.tsx` POSTs to
-`VITE_API_URL/api/login` -> stores the Sanctum token in `localStorage`
+`CRESTKEEPER_API_URL/api/login` -> stores the Sanctum token in `localStorage`
 (key `ck_token`) -> every subsequent call in `api.ts` sends
 `Authorization: Bearer <token>`. The `/api/*` path is never served by Vercel
 (rewrite rules + browser calls to the VPS directly).
@@ -147,7 +147,8 @@ Auth flow after deploy: sign in on the Vercel site -> `Login.tsx` POSTs to
 ## 3. First-run checklist
 
 - [ ] `FRONTEND_URL` on the VPS matches the exact Vercel URL (no trailing slash).
-- [ ] `VITE_API_URL` on Vercel matches the VPS URL.
+- [ ] `CRESTKEEPER_API_URL` on Vercel matches the VPS URL. Add it as a plain
+      **Config** variable (it is public build-time config baked into the JS bundle).
 - [ ] CORS: `curl -X OPTIONS -H "Origin: https://your-app.vercel.app" -H "Access-Control-Request-Method: GET" https://api.yourdomain.com/api/branches` returns `access-control-allow-origin`.
 - [ ] Health: `https://api.yourdomain.com/up` -> ok.
 - [ ] Login works from the Vercel site (Dashboard counts + admin queue appear).
