@@ -1,5 +1,6 @@
-import { Head, Link } from '@inertiajs/react'
+import { Head, Link } from '../router'
 import { useEffect, useState } from 'react'
+import { authFetch } from '../api'
 import theme from '../theme'
 
 const { palette, fonts, type: t, spacing, viewWidth } = theme
@@ -48,7 +49,7 @@ export default function Dashboard() {
     const [msg, setMsg] = useState<string | null>(null)
 
     useEffect(() => {
-        fetch('/api/admin/dashboard')
+        authFetch('/api/admin/dashboard')
             .then((r) => (r.ok ? r.json() : null))
             .then((d: { members_verified?: number; members_pending?: number; verifications_pending?: number; verifications_reviewed?: number } | null) => {
                 if (!d) return
@@ -80,7 +81,7 @@ export default function Dashboard() {
             return
         }
         try {
-            const r = await fetch('/api/me/relationship/' + mid)
+            const r = await authFetch('/api/me/relationship/' + mid)
             if (r.status === 401 || r.status === 403 || r.status === 404) {
                 setMsg('Sign in with a verified profile to ask a relative.')
                 return

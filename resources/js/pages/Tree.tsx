@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react'
-import { useState } from 'react'
+import { Head } from '../router'
+import { useEffect, useState } from 'react'
+import { authFetch } from '../api'
 import theme from '../theme'
 
 const { palette, fonts, type: t, spacing } = theme
@@ -11,9 +12,88 @@ const ad = palette.adire
 type Person = { id: number | string; name: string; role: string }
 type Gen = { label: string; people: Person[] }
 
-export default function Tree({ tree = [] }: { tree?: Gen[] }) {
+type TvMember = { id: number; full_name: string; is_verified?: boolean }
+type TvLink = { id: number; parent_id: number; child_id: number }
+type TvSpouse = { id: number; person_one_id: number; person_two_id: number }
+
+function toGens(d: { members?: TvMember[]; parent_links?: TvLink[]; spouse_links?: TvSpouse[] } | null): Gen[] {
+    if (!d) return []
+    const members = d.members ?? []
+    if (!members.length) return []
+    const parents: Record<number, number[]> = {}
+    const children: Record<number, number[]> = {}
+    const spouses: Record<number, number[]> = {}
+    for (const l of d.parent_links ?? []) {
+        const p = Number(l.parent_id)
+        const c = Number(l.child_id)
+        ;(parents[c] ??= []).push(p)
+        ;(children[p] ??= []).push(c)
+    }
+    for (const s of d.spouse_links ?? []) {
+        const a = Number(s.person_one_id)
+        const b = Number(s.person_two_id)
+        ;(spouses[a] ??= []).push(b)
+        ;(spouses[b] ??= []).push(a)
+    }
+    const memberMap: Record<number, TvMember> = {}
+    for (const m of members) memberMap[Number(m.id)] = m
+    const depth: Record<number, number> = {}
+    const queue: number[] = []
+    for (const m of members) {
+        const id = Number(m.id)
+        if ((parents[id] ?? []).length) continue
+        const hasInLaw = (spouses[id] ?? []).some((mate) => (parents[mate] ?? []).length)
+        if (hasInLaw) continue
+        depth[id] = 0
+        queue.push(id)
+    }
+    for (let i = 0; i < queue.length; i++) {
+        for (const child of children[queue[i]] ?? []) {
+            if (depth[child] === undefined) {
+                depth[child] = depth[queue[i]] + 1
+                queue.push(child)
+            }
+        }
+    }
+    for (const key of Object.keys(spouses)) {
+        const id = Number(key)
+        if (depth[id] !== undefined) continue
+        for (const mate of spouses[id] ?? []) {
+            if (depth[mate] !== undefined) {
+                depth[id] = depth[mate]
+                break
+            }
+        }
+        if (depth[id] === undefined) depth[id] = 0
+    }
+    const byGen: Record<number, number[]> = {}
+    for (const key of Object.keys(depth)) {
+        const id = Number(key)
+        ;(byGen[depth[id]] ??= []).push(id)
+    }
+    const gens: Gen[] = []
+    for (const gen of Object.keys(byGen).map(Number).sort((a, b) => a - b)) {
+        const people: Person[] = []
+        for (const id of byGen[gen].sort((a, b) => a - b)) {
+            const m = memberMap[id]
+            if (!m) continue
+            people.push({ id: m.id, name: m.full_name || 'Unnamed member', role: m.is_verified ? 'verified' : 'pending' })
+        }
+        if (people.length) gens.push({ label: 'Generation ' + (gens.length + 1), people })
+    }
+    return gens
+}
+
+export default function Tree() {
     const [sel, setSel] = useState<{ gen: string; person: Person } | null>(null)
-    const gens = tree ?? []
+    const [gens, setGens] = useState<Gen[]>([])
+
+    useEffect(() => {
+        authFetch('/api/tree')
+            .then((r) => (r.status === 401 ? null : r.ok ? r.json() : null))
+            .then((d) => setGens(toGens(d)))
+            .catch(() => setGens([]))
+    }, [])
 
     if (!gens.length) {
         return (
@@ -28,7 +108,7 @@ export default function Tree({ tree = [] }: { tree?: Gen[] }) {
                         </div>
                         <h1 style={{ ...t.subhead, color: px.paper, margin: '18px 0 8px' }}>The family tree</h1>
                         <p style={{ ...t.body, color: px.paper, opacity: 0.85, margin: 0, lineHeight: 1.6 }}>
-                            The tree is not drawn yet. Verified members appear here, generation by generation, once the elders confirm them.
+                            The tree is not drawn yet. Verified members appear here, generation by generation, once the elders confirm them. Sign in to view the tree.
                         </p>
                     </div>
                 </main>

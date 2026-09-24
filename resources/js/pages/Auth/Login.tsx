@@ -1,5 +1,6 @@
-import { Head, Link, router, usePage } from '@inertiajs/react'
+import { Head, Link, navigate } from '../../router'
 import { useState } from 'react'
+import { authFetch, setToken } from '../../api'
 import theme from '../../theme'
 
 const { palette, fonts, type: t, spacing } = theme
@@ -27,11 +28,32 @@ function FInput({ value, onChange, type, placeholder }: { value: string; onChang
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
-    const errors = (usePage().props.errors as Record<string, string>) || {}
+    const [msg, setMsg] = useState<string | null>(null)
+    const [busy, setBusy] = useState(false)
 
-    function submit(e: { preventDefault: () => void }) {
+    async function submit(e: { preventDefault: () => void }) {
         e.preventDefault()
-        router.post('/login', { email, password })
+        setBusy(true)
+        setMsg(null)
+        try {
+            const r = await authFetch('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password }),
+            })
+            if (!r.ok) {
+                const d: { message?: string; errors?: Record<string, string[]> } = await r.json().catch(() => ({}))
+                const first = d.errors ? Object.values(d.errors).flat()[0] : null
+                setMsg(first || d.message || 'Sign in failed. Check your details and try again.')
+                return
+            }
+            const d: { token?: string } = await r.json()
+            if (d.token) setToken(d.token)
+            navigate('/dashboard')
+        } catch {
+            setMsg('Could not reach the sign in service.')
+        } finally {
+            setBusy(false)
+        }
     }
 
     return (
@@ -42,12 +64,11 @@ export default function Login() {
                 <p style={{ ...t.body, color: ink.warm, margin: '0 0 18px' }}>Use the email your access request was filed under.</p>
                 <label style={{ display: 'block', fontFamily: fonts.body, fontSize: '0.72rem', letterSpacing: '0.05em', color: ink.warm, marginBottom: 5 }}>Email</label>
                 <FInput value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@family.example" />
-                {errors.email && <p style={{ ...t.body, color: ko.kola, fontSize: '0.8rem', margin: '-8px 0 12px' }}>{errors.email}</p>}
                 <label style={{ display: 'block', fontFamily: fonts.body, fontSize: '0.72rem', letterSpacing: '0.05em', color: ink.warm, marginBottom: 5 }}>Password</label>
                 <FInput value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Your password" />
-                {errors.password && <p style={{ ...t.body, color: ko.kola, fontSize: '0.8rem', margin: '-8px 0 12px' }}>{errors.password}</p>}
-                <button type="submit" style={{ background: 'transparent', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.85rem', letterSpacing: '0.05em', padding: '9px 18px', cursor: 'pointer' }}>
-                    Sign in
+                {msg && <p style={{ ...t.body, color: ko.kola, fontSize: '0.8rem', margin: '-8px 0 12px' }}>{msg}</p>}
+                <button type="submit" disabled={busy} style={{ background: 'transparent', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.85rem', letterSpacing: '0.05em', padding: '9px 18px', cursor: 'pointer' }}>
+                    {busy ? 'Signing in...' : 'Sign in'}
                 </button>
                 <p style={{ ...t.body, fontSize: '0.82rem', color: ink.warm, margin: '16px 0 0' }}>
                     No account yet?{' '}

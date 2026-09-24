@@ -1,5 +1,6 @@
-import { Head, Link, router, usePage } from '@inertiajs/react'
-import { useState } from 'react'
+import { Head, Link } from '../../router'
+import { useEffect, useState } from 'react'
+import { authFetch } from '../../api'
 import theme from '../../theme'
 
 const { palette, fonts, type: t, spacing } = theme
@@ -27,27 +28,54 @@ function Label({ children }: { children: string }) {
     )
 }
 
-export default function RequestAccess({ branches = [] }: { branches?: { id: number; name: string }[] }) {
+export default function RequestAccess() {
+    const [branches, setBranches] = useState<{ id: number; name: string }[]>([])
     const [form, setForm] = useState({
         first_name: '', last_name: '', email: '', gender: 'other',
         family_branch_id: '', claimed_relationship_type: '',
         password: '', password_confirmation: '', notes: '',
     })
-    const errors = (usePage().props.errors as Record<string, string>) || {}
+    const [msg, setMsg] = useState<string | null>(null)
+    const [done, setDone] = useState(false)
+    const [busy, setBusy] = useState(false)
+
+    useEffect(() => {
+        authFetch('/api/branches')
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d: { branches?: { id: number; name: string }[] } | null) => setBranches(d?.branches ?? []))
+            .catch(() => {})
+    }, [])
 
     function set(k: string, v: string) {
         setForm((p) => ({ ...p, [k]: v }))
     }
 
-    function submit(e: { preventDefault: () => void }) {
+    async function submit(e: { preventDefault: () => void }) {
         e.preventDefault()
-        router.post('/api/request-access', {
-            ...form,
-            family_branch_id: form.family_branch_id ? Number(form.family_branch_id) : null,
-        })
+        setBusy(true)
+        setMsg(null)
+        try {
+            const r = await authFetch('/api/request-access', {
+                method: 'POST',
+                body: JSON.stringify({
+                    ...form,
+                    family_branch_id: form.family_branch_id ? Number(form.family_branch_id) : null,
+                }),
+            })
+            const d: { message?: string; errors?: Record<string, string[]> } = await r.json().catch(() => ({}))
+            if (!r.ok) {
+                const first = d.errors ? Object.values(d.errors).flat()[0] : null
+                setMsg(first || d.message || 'Could not submit your request. Please try again.')
+                return
+            }
+            setMsg(d.message || 'Your request has been submitted. A family elder will review it.')
+            setDone(true)
+        } catch {
+            setMsg('Could not reach the lineage service.')
+        } finally {
+            setBusy(false)
+        }
     }
-
-    const hasErrors = Object.keys(errors).length > 0
 
     return (
         <div style={{ minHeight: '100vh', background: ink.ink, color: px.paper, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
@@ -57,6 +85,9 @@ export default function RequestAccess({ branches = [] }: { branches?: { id: numb
                 <p style={{ ...t.body, color: ink.warm, margin: '0 0 18px' }}>
                     Tell us how you connect to the Bolaji lineage. A family elder reviews every request before the registry opens.
                 </p>
+                {done && msg && (
+                    <p style={{ ...t.body, color: palette.moss.moss, margin: '0 0 12px', border: '1px solid ' + palette.moss.moss, padding: 10 }}>{msg}</p>
+                )}
                 <Label>First name</Label>
                 <input style={input} value={form.first_name} onChange={(e) => set('first_name', e.target.value)} placeholder="First name" />
                 <Label>Last name</Label>
@@ -91,13 +122,13 @@ export default function RequestAccess({ branches = [] }: { branches?: { id: numb
                 <input style={input} value={form.password_confirmation} onChange={(e) => set('password_confirmation', e.target.value)} type="password" placeholder="Repeat your password" />
                 <Label>Notes</Label>
                 <textarea style={{ ...input, minHeight: 60 }} value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Anything that helps the elder confirm your connection" />
-                {hasErrors && (
+                {!done && msg && (
                     <div style={{ border: '1px solid ' + palette.kola.kola, color: palette.kola.light, padding: 10, fontFamily: fonts.body, fontSize: '0.82rem', marginBottom: 12 }}>
-                        {Object.values(errors).join(' ')}
+                        {msg}
                     </div>
                 )}
-                <button type="submit" style={{ background: 'transparent', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.85rem', letterSpacing: '0.05em', padding: '9px 18px', cursor: 'pointer' }}>
-                    Request access
+                <button type="submit" disabled={busy || done} style={{ background: 'transparent', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.85rem', letterSpacing: '0.05em', padding: '9px 18px', cursor: 'pointer' }}>
+                    {busy ? 'Submitting...' : 'Request access'}
                 </button>
                 <p style={{ ...t.body, fontSize: '0.82rem', color: ink.warm, margin: '16px 0 0' }}>
                     Already enrolled?{' '}

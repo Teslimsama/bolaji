@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react'
+import { Head } from '../router'
 import { useState } from 'react'
+import { authFetch } from '../api'
 import theme from '../theme'
 
 const { palette, fonts, type: t, spacing, viewWidth } = theme
@@ -39,7 +40,7 @@ export default function Find() {
         setRelNote(null)
         setNote(null)
         try {
-            const r = await fetch('/api/members?search=' + encodeURIComponent(search.trim()))
+            const r = await authFetch('/api/members?search=' + encodeURIComponent(search.trim()))
             if (r.status === 401 || r.status === 403) {
                 setMembers([])
                 setNote('Sign in to search the registry - it is kept private.')
@@ -65,7 +66,7 @@ export default function Find() {
         setRel(null)
         setRelNote(null)
         try {
-            const r = await fetch('/api/me/relationship/' + m.id)
+            const r = await authFetch('/api/me/relationship/' + m.id)
             if (r.status === 401 || r.status === 403) {
                 setRelNote('Sign in with a verified profile to see how you are connected.')
                 return

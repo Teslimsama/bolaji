@@ -1,5 +1,6 @@
-import { Head } from '@inertiajs/react'
+import { Head } from '../router'
 import { useEffect, useState } from 'react'
+import { authFetch } from '../api'
 import theme from '../theme'
 
 const { palette, fonts, type: t, spacing, viewWidth } = theme
@@ -40,14 +41,14 @@ function statusMeta(s: string): { label: string; color: string } {
 }
 
 async function fetchQueue(): Promise<Row[]> {
-    const r = await fetch('/api/verifications')
+    const r = await authFetch('/api/verifications')
     if (!r.ok) return []
     const d: { requests?: unknown[] } = await r.json()
     return toRows(d.requests ?? [])
 }
 
-export default function AdminQueue({ requests = [] }: { requests?: unknown[] }) {
-    const [rows, setRows] = useState<Row[]>(() => toRows(requests))
+export default function AdminQueue() {
+    const [rows, setRows] = useState<Row[]>([])
     const [sel, setSel] = useState<Row | null>(null)
     const [note, setNote] = useState<string | null>(null)
     const [busy, setBusy] = useState(false)
@@ -62,9 +63,8 @@ export default function AdminQueue({ requests = [] }: { requests?: unknown[] }) 
         if (!sel) return
         setBusy(true)
         try {
-            const r = await fetch('/api/verifications/' + sel.id + '/review', {
+            const r = await authFetch('/api/verifications/' + sel.id + '/review', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status }),
             })
             if (r.ok) {

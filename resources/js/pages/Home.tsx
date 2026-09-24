@@ -1,5 +1,6 @@
-import { Head, Link } from '@inertiajs/react'
+import { Head, Link } from '../router'
 import { useEffect, useState } from 'react'
+import { authFetch } from '../api'
 import theme from '../theme'
 
 const { palette, fonts, type: t, spacing, viewWidth } = theme
@@ -13,7 +14,7 @@ export default function Home() {
     const [reg, setReg] = useState({ branches: 0, kin: 0 })
 
     useEffect(() => {
-        fetch('/api/branches')
+        authFetch('/api/branches')
             .then((r) => (r.ok ? r.json() : null))
             .then((d: { branches?: { member_count?: number }[] } | null) => {
                 const list = d?.branches ?? []

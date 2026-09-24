@@ -1,4 +1,6 @@
-import { Head, Link } from '@inertiajs/react'
+import { Head, Link } from '../../router'
+import { useEffect, useState } from 'react'
+import { authFetch } from '../../api'
 import theme from '../../theme'
 
 const { palette, fonts, type: t, spacing } = theme
@@ -8,8 +10,26 @@ const br = palette.brass
 const ad = palette.adire
 const mo = palette.moss
 
-export default function VerifyStatus({ status = null }: { status?: string | null }) {
-    const st = status || 'pending'
+export default function VerifyStatus() {
+    const [st, setSt] = useState<string>('pending')
+    const [note, setNote] = useState<string | null>(null)
+
+    useEffect(() => {
+        authFetch('/api/me')
+            .then((r) => {
+                if (r.status === 401) {
+                    setNote('Sign in with the email used for your request to check your status.')
+                    return null
+                }
+                return r.ok ? r.json() : null
+            })
+            .then((d: { user?: { member?: { status?: string } | null } } | null) => {
+                if (!d) return
+                setSt(d.user?.member?.status || 'pending')
+            })
+            .catch(() => {})
+    }, [])
+
     const verified = st === 'verified'
     const seal = verified ? mo.moss : ad.indigo
     const sentence = verified
@@ -30,6 +50,7 @@ export default function VerifyStatus({ status = null }: { status?: string | null
                 </div>
                 <div style={{ ...t.label, color: ad.pale, marginTop: spacing.md }}>status: {st}</div>
                 <p style={{ ...t.body, color: ink.warm, margin: '10px 0 0', maxWidth: 340, marginLeft: 'auto', marginRight: 'auto' }}>{sentence}</p>
+                {note && <p style={{ ...t.body, fontSize: '0.82rem', color: ink.warm, margin: '10px auto 0', maxWidth: 340 }}>{note}</p>}
                 <Link href="/me" style={{ display: 'inline-block', marginTop: 22, border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.82rem', letterSpacing: '0.05em', padding: '9px 16px', textDecoration: 'none' }}>
                     Back to your profile
                 </Link>

@@ -1,5 +1,6 @@
-import { Head, Link, router } from '@inertiajs/react'
-import { useState } from 'react'
+import { Head, Link, navigate } from '../../router'
+import { useEffect, useState } from 'react'
+import { authFetch, clearToken } from '../../api'
 import theme from '../../theme'
 
 const { palette, fonts, type: t, spacing } = theme
@@ -22,26 +23,64 @@ const input: React.CSSProperties = {
     marginBottom: 12,
 }
 
-export default function Profile({ member = null }: { member?: Record<string, any> | null }) {
-    const [form, setForm] = useState({
-        first_name: member?.first_name || '',
-        last_name: member?.last_name || '',
-        phone: member?.phone || '',
-        email: member?.email || '',
-    })
+export default function Profile() {
+    const [member, setMember] = useState<Record<string, any> | null>(null)
+    const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', email: '' })
     const [msg, setMsg] = useState<string | null>(null)
+
+    useEffect(() => {
+        authFetch('/api/me')
+            .then((r) => {
+                if (r.status === 401) {
+                    setMsg('Sign in with a verified member to view your profile.')
+                    return null
+                }
+                return r.ok ? r.json() : null
+            })
+            .then((d: { user?: { member?: Record<string, any> | null } } | null) => {
+                if (!d) return
+                const m = d.user?.member ?? null
+                setMember(m)
+                if (m) setForm({ first_name: m.first_name || '', last_name: m.last_name || '', phone: m.phone || '', email: m.email || '' })
+            })
+            .catch(() => {})
+    }, [])
 
     function set(k: string, v: string) {
         setForm((p) => ({ ...p, [k]: v }))
     }
 
-    function submit(e: { preventDefault: () => void }) {
+    async function submit(e: { preventDefault: () => void }) {
         e.preventDefault()
         if (!member?.id) {
             setMsg('Sign in with a verified member to save your details.')
             return
         }
-        router.put('/api/members/' + member.id, form)
+        try {
+            const r = await authFetch('/api/members/' + member.id, {
+                method: 'PUT',
+                body: JSON.stringify(form),
+            })
+            const d: { message?: string; errors?: Record<string, string[]> } = await r.json().catch(() => ({}))
+            if (!r.ok) {
+                const first = d.errors ? Object.values(d.errors).flat()[0] : null
+                setMsg(first || d.message || 'Could not save your details.')
+                return
+            }
+            setMsg('Details saved.')
+        } catch {
+            setMsg('Could not reach the lineage service.')
+        }
+    }
+
+    async function signOut() {
+        try {
+            await authFetch('/api/logout', { method: 'POST' })
+        } catch {
+            // noop
+        }
+        clearToken()
+        navigate('/')
     }
 
     const verified = Boolean(member?.is_verified)
@@ -84,9 +123,14 @@ export default function Profile({ member = null }: { member?: Record<string, any
                         {msg && <p style={{ ...t.body, fontSize: '0.8rem', color: palette.kola.kola, margin: '10px 0 0' }}>{msg}</p>}
                     </form>
                 </div>
-                <Link href="/me/verify" style={{ display: 'inline-block', marginTop: 20, border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.82rem', letterSpacing: '0.05em', padding: '9px 16px', textDecoration: 'none' }}>
-                    Check verification status
-                </Link>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 20 }}>
+                    <Link href="/me/verify" style={{ display: 'inline-block', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.82rem', letterSpacing: '0.05em', padding: '9px 16px', textDecoration: 'none' }}>
+                        Check verification status
+                    </Link>
+                    <button onClick={signOut} style={{ background: 'transparent', border: '1px solid ' + px.paper, color: ink.ink, fontFamily: fonts.body, fontSize: '0.82rem', letterSpacing: '0.05em', padding: '9px 16px', cursor: 'pointer' }}>
+                        Sign out
+                    </button>
+                </div>
             </div>
         </div>
     )
