@@ -2,53 +2,50 @@ import { Head, Link } from '@inertiajs/react'
 import { useEffect, useState } from 'react'
 import theme from '../theme'
 
-const { palette, fonts, type: t, viewWidth } = theme
+const { palette, fonts, type: t, spacing, viewWidth } = theme
 const ink = palette.ink
-const pc = palette.parchment
+const px = palette.parchment
 const br = palette.brass
 const ad = palette.adire
+const ko = palette.kola
 
-function Rail({ active }: { active: string }) {
+type Rel = {
+    subject?: { full_name?: string; branch?: string | null }
+    label: string
+    kin_type: string
+    degrees?: { m: number; n: number }
+    common_ancestor?: { full_name: string } | null
+    close_family_warning?: boolean
+    close_family_reason?: string | null
+    details?: string
+}
+
+function Nav({ active }: { active: string }) {
     const items: [string, string][] = [
-        ['home', 'Home'],
-        ['dashboard', 'Dashboard'],
-        ['tree', 'Tree'],
-        ['find', 'Find'],
-        ['admin', 'Admin'],
+        ['', 'home'],
+        ['dashboard', 'dashboard'],
+        ['tree', 'tree'],
+        ['find', 'find'],
+        ['admin/queue', 'admin'],
     ]
     return (
-        <div style={{ position: 'fixed', top: 0, bottom: 0, left: 0, width: 92, background: ink.warm, borderRight: '1px solid ' + br.brass, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 24, zIndex: 40 }}>
-            <Link href="/" style={{ textDecoration: 'none' }}>
-                <div style={{ width: 44, height: 44, border: '1px solid ' + br.brass, display: 'grid', placeItems: 'center' }}>
-                    <div style={{ width: 34, height: 34, border: '1px solid ' + br.bright, display: 'grid', placeItems: 'center' }}>
-                        <span style={{ fontFamily: fonts.display, fontSize: 20, lineHeight: 1, color: br.brass }}>B</span>
-                    </div>
-                </div>
-            </Link>
-            <div className="adire-line" style={{ height: 24, margin: '18px auto 6px' }} />
-            <div className="adire-dot" style={{ margin: '0 auto 6px' }} />
-            {items.map(([path, label]) => (
-                <Link key={path} href={'/' + path} style={{ textDecoration: 'none', margin: '7px 0', fontFamily: fonts.body, fontSize: '0.66rem', letterSpacing: '0.07em', color: path === active ? br.brass : pc.paper, opacity: path === active ? 1 : 0.6 }}>
-                    {label}
+        <nav style={{ background: ink.warm, borderBottom: '1px solid ' + br.brass, padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 22 }}>
+            {items.map(([h, l]) => (
+                <Link key={l} href={'/' + h} style={{ fontFamily: fonts.body, fontSize: '0.78rem', letterSpacing: '0.05em', textDecoration: 'none', color: active === l ? br.brass : px.paper, opacity: active === l ? 1 : 0.65 }}>
+                    {l}
                 </Link>
             ))}
-            <div className="adire-line" style={{ height: 16, margin: '8px auto' }} />
-            <Link href="/login" style={{ textDecoration: 'none', fontFamily: fonts.body, fontSize: '0.66rem', letterSpacing: '0.07em', color: pc.paper, opacity: 0.75 }}>
-                Sign in
-            </Link>
-            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: 18 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid ' + br.brass, display: 'grid', placeItems: 'center' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: ad.indigo }} />
-                </div>
-                <div style={{ fontFamily: fonts.body, fontSize: '0.6rem', letterSpacing: '0.06em', color: pc.paper, opacity: 0.5, marginTop: 6 }}>demo</div>
-            </div>
-        </div>
+            <span style={{ marginLeft: 'auto' }} className="adire-dot" />
+        </nav>
     )
 }
 
 export default function Dashboard() {
-    const [counts, setCounts] = useState<{ verified: number; pending: number; reviews: number; reviewed: number } | null>(null)
-    const [online, setOnline] = useState(false)
+    const [counts, setCounts] = useState({ verified: 0, pending: 0, reviews: 0, reviewed: 0 })
+    const [loaded, setLoaded] = useState(false)
+    const [id, setId] = useState('')
+    const [rel, setRel] = useState<Rel | null>(null)
+    const [msg, setMsg] = useState<string | null>(null)
 
     useEffect(() => {
         fetch('/api/admin/dashboard')
@@ -61,47 +58,96 @@ export default function Dashboard() {
                     reviews: d.verifications_pending ?? 0,
                     reviewed: d.verifications_reviewed ?? 0,
                 })
-                setOnline(true)
+                setLoaded(true)
             })
             .catch(() => {})
     }, [])
 
-    const cards: { label: string; value: number | undefined }[] = [
-        { label: 'verified generations', value: counts?.verified },
-        { label: 'pending generations', value: counts?.pending },
-        { label: 'reviews pending', value: counts?.reviews },
-        { label: 'reviews completed', value: counts?.reviewed },
+    const cards = [
+        { label: 'members verified', value: counts.verified },
+        { label: 'members pending', value: counts.pending },
+        { label: 'reviews pending', value: counts.reviews },
+        { label: 'reviews completed', value: counts.reviewed },
     ]
 
+    async function ask(e: { preventDefault: () => void }) {
+        e.preventDefault()
+        setRel(null)
+        setMsg(null)
+        const mid = Number(id.trim())
+        if (!mid) {
+            setMsg('Enter a member id to trace a connection.')
+            return
+        }
+        try {
+            const r = await fetch('/api/me/relationship/' + mid)
+            if (r.status === 401 || r.status === 403 || r.status === 404) {
+                setMsg('Sign in with a verified profile to ask a relative.')
+                return
+            }
+            if (!r.ok) {
+                const d: { message?: string } = await r.json().catch(() => ({}))
+                setMsg(d.message || 'No connection found for this member yet.')
+                return
+            }
+            const d: { result: Rel } = await r.json()
+            setRel(d.result)
+        } catch {
+            setMsg('Could not reach the lineage service.')
+        }
+    }
+
     return (
-        <div style={{ minHeight: '100vh', background: ink.ink, color: pc.paper }}>
+        <div style={{ minHeight: '100vh', background: ink.ink, color: px.paper }}>
             <Head title="Dashboard" />
-            <Rail active="dashboard" />
-            <main style={{ paddingLeft: 92 }}>
-                <div style={{ maxWidth: viewWidth.wide, margin: '0 auto', padding: '56px 48px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 34 }}>
-                        <span className="adire-dot" />
-                        <span className="adire-line" style={{ width: 1, height: 26, margin: 0 }} />
-                        <span className="adire-dot" />
-                        <h1 style={{ ...t.subhead, margin: 0, color: pc.paper }}>Your dashboard</h1>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-                        {cards.map((card) => (
-                            <div key={card.label} style={{ background: pc.base, color: ink.ink, border: '1px solid ' + br.brass, padding: 18 }}>
-                                <div style={{ fontFamily: fonts.body, fontWeight: 500, fontSize: '0.72rem', letterSpacing: '0.06em', color: ink.warm, marginBottom: 10 }}>{card.label}</div>
-                                <div style={{ fontFamily: fonts.display, fontSize: 38, color: br.brass, lineHeight: 1 }}>{card.value ?? '-'}</div>
-                            </div>
-                        ))}
-                    </div>
-                    {!online && (
-                        <div style={{ marginTop: 34, background: pc.base, color: ink.ink, border: '1px solid ' + ad.indigo, padding: 28 }}>
-                            <p style={{ ...t.subhead, margin: '0 0 8px' }}>Sign in to view your lineages</p>
-                            <p style={{ ...t.body, color: ink.warm, margin: 0 }}>
-                                This dashboard is read-only in the demo. Live counts and your personal lineage appear once a verified profile signs in.
-                            </p>
-                        </div>
-                    )}
+            <Nav active="dashboard" />
+            <main style={{ maxWidth: viewWidth.wide, margin: '0 auto', padding: '56px 48px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 30 }}>
+                    <span className="adire-dot" />
+                    <span className="adire-line" style={{ width: 1, height: 26, margin: 0 }} />
+                    <span className="adire-dot" />
+                    <h1 style={{ ...t.subhead, margin: 0, color: px.paper }}>Your dashboard</h1>
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: spacing.md }}>
+                    {cards.map((c) => (
+                        <div key={c.label} style={{ position: 'relative', background: px.base, color: ink.ink, border: '1px solid ' + br.brass, padding: spacing.lg }}>
+                            <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <span className="adire-dot" />
+                                <span className="adire-line" style={{ height: 10, width: 2, margin: 0 }} />
+                            </div>
+                            <div style={{ ...t.label, color: ink.warm, marginBottom: spacing.xs }}>{c.label}</div>
+                            <div style={{ fontFamily: fonts.display, fontSize: 40, lineHeight: 1, color: br.brass }}>{c.value}</div>
+                        </div>
+                    ))}
+                </div>
+                <form onSubmit={ask} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: spacing.xl }}>
+                    <input
+                        value={id}
+                        onChange={(e) => setId(e.target.value)}
+                        placeholder="Member id"
+                        style={{ background: 'transparent', border: '1px solid ' + br.brass, color: px.paper, fontFamily: fonts.body, fontSize: '0.9rem', padding: '9px 12px', maxWidth: 220 }}
+                    />
+                    <button type="submit" style={{ background: 'transparent', border: '1px solid ' + br.brass, color: br.brass, fontFamily: fonts.body, fontSize: '0.85rem', letterSpacing: '0.05em', padding: '9px 18px', cursor: 'pointer' }}>
+                        ask a relative
+                    </button>
+                </form>
+                {msg && <p style={{ ...t.body, color: px.paper, opacity: 0.85, marginTop: spacing.sm }}>{msg}</p>}
+                {rel && (
+                    <div style={{ background: px.base, color: ink.ink, border: '1px solid ' + ad.indigo, padding: spacing.lg, marginTop: spacing.md }}>
+                        <div style={{ fontFamily: fonts.display, fontSize: 24, color: br.brass }}>{rel.label}</div>
+                        {rel.details && <p style={{ ...t.body, color: ink.warm, margin: '6px 0 0' }}>{rel.details}</p>}
+                        {rel.close_family_warning && (
+                            <div style={{ marginTop: spacing.sm, border: '1px solid ' + ko.kola, color: ko.light, padding: 10, fontFamily: fonts.body, fontSize: '0.85rem' }}>
+                                Close family note: {rel.close_family_reason || 'you share a recent ancestor'}
+                            </div>
+                        )}
+                    </div>
+                )}
+                {!loaded && (
+                    <div style={{ marginTop: spacing.xl, border: '1px dashed ' + br.brass, padding: spacing.lg, maxWidth: 560 }}>
+                        <p style={{ ...t.body, margin: 0, color: px.paper, opacity: 0.85 }}>No verified data yet - your lineage numbers appear once a verified profile signs in.</p>
+                    </div>
+                )}
             </main>
         </div>
     )
